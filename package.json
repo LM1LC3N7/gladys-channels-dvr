@@ -1,6 +1,6 @@
 {
   "name": "gladys-channels-dvr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Channels DVR: the recordings and disk of Channels DVR Server, and the Channels apps (play, pause, stop, mute, channel), on the local network. Unofficial, not affiliated with Fancy Bits.",
   "type": "module",

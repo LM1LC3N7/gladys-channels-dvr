@@ -6,8 +6,8 @@
     "en": "Channels DVR Server recordings and disk, and control of the Channels apps (play, pause, channel).",
     "fr": "Enregistrements et disque de Channels DVR Server, pilotage des applis Channels (lecture, chaîne)."
   },
-  "version": "0.1.0",
-  "docker_image": "ghcr.io/lm1lc3n7/gladys-channels-dvr:0.1.0",
+  "version": "0.1.1",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-channels-dvr:0.1.1",
   "gladys_version": ">=5.3.0",
   "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-channels-dvr/main/cover.png",
   "categories": ["multimedia", "servers"],

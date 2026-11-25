@@ -10,9 +10,14 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-25
+
 ### Added
 
 - First version, never tested with a real Channels: Channels DVR Server
   (recordings in progress and upcoming, what records now, the next recording,
   free and used disk) and up to ten Channels apps (playback, title, mute,
   channel, channel name, channel up / down), on the local network, no account.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-channels-dvr/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-channels-dvr/releases/tag/v0.1.1
