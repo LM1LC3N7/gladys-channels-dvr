@@ -12,7 +12,7 @@ documentation, tested against simulated servers.
 - User documentation: [English](docs/en.md), [français](docs/fr.md).
 - Built on [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js)
   0.16; Gladys 5.3.0 or later (country filter, music types).
-- Store countries: United States, Canada.
+- Store countries: United States, Canada, United Kingdom (the official list of Channels).
 
 ## Development
 

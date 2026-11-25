@@ -16,7 +16,7 @@ import { ACTIONS, NOTHING, STORE_FILE, TIMINGS } from '../src/constants.js';
 import { buildPlayerDevice, buildServerDevice } from '../src/model.js';
 import { registerHandlers } from '../src/handlers.js';
 import { fakeClock } from './helpers/clock.js';
-import { NOW, createFakeChannels, job } from './helpers/fakeChannels.js';
+import { NOW, createFakeChannels, job, playing } from './helpers/fakeChannels.js';
 
 const SELECTOR = 'channels-dvr';
 const ids = createFakeGladys({ selector: SELECTOR });
@@ -26,6 +26,9 @@ const SERVER = buildServerDevice(ids, cfg.server);
 const LIVING = buildPlayerDevice(ids, cfg.players[0]);
 const BEDROOM = buildPlayerDevice(ids, cfg.players[1]);
 const fid = (device, key) => device.features.find((f) => f.external_id.endsWith(`:${key}`));
+
+/** test -> the apps it started and the directories it made */
+const APPS = new WeakMap();
 
 function makeLogger() {
   const logs = [];
@@ -71,9 +74,10 @@ async function setup(
     };
   }
   const { logs, logger } = makeLogger();
+  let ownDir = false;
   if (!dataDir) {
     dataDir = mkdtempSync(join(tmpdir(), 'channels-app-'));
-    t.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 5 }));
+    ownDir = true;
   }
   const app = new ChannelsApp({
     gladys,
@@ -85,7 +89,18 @@ async function setup(
     timers: clock.timers,
     fs,
   });
-  t.after(() => app.stop());
+  // Every app of the test stopped (its last /data write done) before a
+  // directory is removed: a late write never recreates it.
+  if (!APPS.has(t)) {
+    APPS.set(t, { apps: [], dirs: [] });
+    t.after(async () => {
+      const { apps, dirs } = APPS.get(t);
+      for (const one of apps) await one.stop();
+      for (const dir of dirs) await rm(dir, { recursive: true, force: true, maxRetries: 5 });
+    });
+  }
+  APPS.get(t).apps.push(app);
+  if (ownDir) APPS.get(t).dirs.push(dataDir);
   registerHandlers(gladys, app, logger);
   await gladys.connect();
   await clock.advance(0);
@@ -390,26 +405,27 @@ test('command: read-only features and the server refuse; a player no longer conf
   assert.equal(channels.count(/^POST/), 0);
 });
 
-test('command: applied after its answer -> follow-up readings publish it, never "applied" before', async (t) => {
-  const { gladys, channels, clock, logs } = await setup(t);
-  const living = channels.devices.get('192.168.1.20:57000').state;
-  living.late = true;
+test('command: applied just after its answer -> seen by the reading within the budget: success', async (t) => {
+  const { gladys, channels } = await setup(t);
+  channels.devices.get('192.168.1.20:57000').state.late = true;
   const ack = await set(gladys, LIVING, 'playback_state', 0);
-  assert.equal(ack.success, true, 'sent and accepted');
-  assert.equal(last(gladys, LIVING, 'playback_state'), 1, 'not seen applied: unchanged');
-  assert.ok(logs.some((l) => /playback_state sent, not seen applied yet/.test(l)));
-  await clock.advance(1_500);
-  assert.equal(last(gladys, LIVING, 'playback_state'), 0, 'the follow-up reading shows it');
-  await clock.advance(3_500);
-  assert.ok(!logs.some((l) => /not seen applied$/.test(l)));
+  assert.equal(ack.success, true);
+  assert.equal(last(gladys, LIVING, 'playback_state'), 0);
+  assert.equal(
+    channels.count(/^GET 192\.168\.1\.20:57000\/api\/status$/),
+    3,
+    'round, before, after',
+  );
 });
 
-test('command: never applied -> a warning after the last follow-up', async (t) => {
+test('command: accepted but never shown applied -> error "sent, without confirmation", follow-ups, warning', async (t) => {
   const { gladys, channels, clock, logs } = await setup(t);
-  const living = channels.devices.get('192.168.1.20:57000').state;
-  living.late = true;
-  await set(gladys, LIVING, 'channel', 7);
-  living.pending = null; // the app ignores it
+  channels.devices.get('192.168.1.20:57000').state.ignore = true;
+  const ack = await set(gladys, LIVING, 'channel', 7);
+  assert.equal(ack.success, false);
+  assert.match(ack.error, /Living room: sent, without confirmation \(not seen applied yet\)/);
+  assert.doesNotMatch(ack.error, /nothing sent/);
+  assert.equal(channels.count(/play\/channel\/7$/), 1);
   await clock.advance(5_000);
   assert.ok(logs.some((l) => /warn Living room: the command is not seen applied/.test(l)));
   assert.equal(last(gladys, LIVING, 'channel'), 552);
@@ -428,61 +444,101 @@ test('command: sent without answer -> "sent, without confirmation", follow-ups p
   assert.equal(last(gladys, LIVING, 'playback_state'), 0, 'the follow-up reading shows it');
 });
 
-test('command: an HTTP error of the app is said, never "applied" nor "nothing sent"', async (t) => {
+test('command: a slow answer past the deadline -> "sent, without confirmation" (never "nothing sent")', async (t) => {
   const { gladys, channels } = await setup(t);
-  channels.devices.get('192.168.1.20:57000').state.commandMode = 404;
+  channels.devices.get('192.168.1.20:57000').state.commandLatencyMs = 3_800;
   const ack = await set(gladys, LIVING, 'playback_state', 0);
   assert.equal(ack.success, false);
-  assert.match(ack.error, /answered HTTP 404, not seen applied/);
+  assert.match(ack.error, /Living room: sent, without confirmation \(no answer in time\)/);
 });
 
-test('command: an answer that is not a status -> sent, not seen applied, follow-ups', async (t) => {
-  const { gladys, channels, clock, logs } = await setup(t);
+test('command: HTTP 4xx = refused by the app; 5xx = sent, without confirmation', async (t) => {
+  const { gladys, channels } = await setup(t);
+  const living = channels.devices.get('192.168.1.20:57000').state;
+  living.commandMode = 405;
+  let ack = await set(gladys, LIVING, 'playback_state', 0);
+  assert.match(ack.error, /the app refused the command \(HTTP 405\)/);
+  living.commandMode = 500;
+  ack = await set(gladys, LIVING, 'playback_state', 0);
+  assert.match(ack.error, /answered HTTP 500, sent, without confirmation/);
+});
+
+test('command: an answer that is not a status -> the reading within the budget decides', async (t) => {
+  const { gladys, channels } = await setup(t);
   channels.devices.get('192.168.1.20:57000').state.commandEmpty = true;
   const ack = await set(gladys, LIVING, 'playback_state', 0);
   assert.equal(ack.success, true);
-  assert.ok(logs.some((l) => /not seen applied yet/.test(l)));
-  await clock.advance(1_500);
   assert.equal(last(gladys, LIVING, 'playback_state'), 0);
 });
 
-test('mute: a toggle sent on a state read just now; a second one waits until the first is seen', async (t) => {
+test('command: a slow app does not turn "App answering" to 0 through the short reading before', async (t) => {
+  const { gladys, channels } = await setup(t);
+  channels.devices.get('192.168.1.20:57000').state.slowMs = 2_000; // the 4 s reading sees it
+  const ack = await set(gladys, LIVING, 'playback_state', 0);
+  assert.match(ack.error, /no answer \(no answer in time\): nothing sent/);
+  assert.equal(last(gladys, LIVING, 'online'), 1);
+  assert.equal(channels.count(/^POST/), 0);
+});
+
+test('mute: already in the wanted state -> no toggle', async (t) => {
+  const { gladys, channels } = await setup(t);
+  const ack = await set(gladys, LIVING, 'mute', 0);
+  assert.equal(ack.success, true);
+  assert.equal(channels.count(/toggle_mute/), 0);
+});
+
+test('mute: a toggle not seen applied blocks the next one until it is seen', async (t) => {
   const { gladys, channels, clock } = await setup(t);
   const living = channels.devices.get('192.168.1.20:57000').state;
-  living.late = true;
-  await set(gladys, LIVING, 'mute', 1);
+  living.ignore = true;
+  let ack = await set(gladys, LIVING, 'mute', 1);
+  assert.match(ack.error, /sent, without confirmation/);
   assert.equal(channels.count(/toggle_mute/), 1);
-  // The pre-read of the next command applies the pending toggle (late app):
-  // muted, so unmuting would be a new toggle... refused while not seen applied.
-  living.pending = null;
-  living.state.muted = false; // still not applied
-  const ack = await set(gladys, LIVING, 'mute', 1);
-  assert.equal(ack.success, false);
+  ack = await set(gladys, LIVING, 'mute', 1);
   assert.match(
     ack.error,
     /previous mute change is not seen applied yet \(retry in a few seconds\): nothing sent/,
   );
   assert.equal(channels.count(/toggle_mute/), 1);
-  living.state.muted = true; // applied now
-  await clock.advance(1_500); // follow-up reading sees it: guard lifted
-  living.late = false;
-  const ok = await set(gladys, LIVING, 'mute', 0);
-  assert.equal(ok.success, true);
+  living.ignore = false;
+  living.state.muted = true; // applied late
+  await clock.advance(1_500); // the follow-up reading sees it: guard lifted
+  ack = await set(gladys, LIVING, 'mute', 0);
+  assert.equal(ack.success, true);
   assert.equal(channels.count(/toggle_mute/), 2);
   assert.equal(last(gladys, LIVING, 'mute'), 0);
 });
 
-test('mute: the guard ends with its time (6 s) even unseen', async (t) => {
+test('mute: the guard ends with its time (6 s) even unseen; a 4xx lifts it at once', async (t) => {
   const { gladys, channels, clock } = await setup(t);
   const living = channels.devices.get('192.168.1.20:57000').state;
-  living.late = true;
+  living.ignore = true;
   await set(gladys, LIVING, 'mute', 1);
-  living.pending = null;
   await clock.advance(TIMINGS.TOGGLE_GUARD_MS);
-  living.late = false;
+  await set(gladys, LIVING, 'mute', 1);
+  assert.equal(channels.count(/toggle_mute/), 2, 'sent again after 6 s');
+  await clock.advance(TIMINGS.TOGGLE_GUARD_MS);
+  living.ignore = false;
+  living.commandMode = 405;
+  const refused = await set(gladys, LIVING, 'mute', 1);
+  assert.match(refused.error, /refused the command \(HTTP 405\)/);
+  living.commandMode = 'ok';
   const ack = await set(gladys, LIVING, 'mute', 1);
+  assert.equal(ack.success, true, 'a refused toggle applied nothing: no guard');
+  assert.equal(channels.count(/toggle_mute/), 4);
+});
+
+test('channel "12.10": kept as text, never published as 12.1; tuning 12.1 is sent', async (t) => {
+  const clock = fakeClock({ wall: NOW });
+  const channels = createFakeChannels({ clock });
+  channels.addPlayer('192.168.1.20', 57000, playing('12.10', 'KCET HD'));
+  const { gladys } = await setup(t, { clock, channels });
+  assert.equal(last(gladys, LIVING, 'channel'), undefined);
+  assert.equal(last(gladys, LIVING, 'channel_name'), 'KCET HD');
+  const ack = await set(gladys, LIVING, 'channel', 12.1);
   assert.equal(ack.success, true);
-  assert.equal(channels.count(/toggle_mute/), 2);
+  assert.equal(channels.count(/play\/channel\/12\.1$/), 1);
+  assert.equal(last(gladys, LIVING, 'channel'), 12.1);
 });
 
 test('channel: tuned (subchannel "12.1" too); up and down; same channel: nothing sent', async (t) => {
@@ -626,6 +682,51 @@ test('a reading older than the one kept is not published (a round crossing a com
   const old = { online: true, status: { playback: 1, muted: false, channel: null, title: 'y' } };
   assert.equal(app.record(player, old, app.monotonic() - 10_000), false);
   assert.equal(app.readings.get('player:192-168-1-20').reading, fresh);
+});
+
+test('a /data write that hangs never stops the rounds', async (t) => {
+  const fs = {
+    readFile: async () => JSON.stringify({ attempts: {} }),
+    writeFile: () => new Promise(() => {}),
+    rename: async () => {},
+    rm: async () => {},
+    mkdir: async () => {},
+  };
+  const { clock, channels } = await setup(t, { fs });
+  await clock.advance(TIMINGS.DATA_READ_MS);
+  assert.equal(reads(channels, '192.168.1.3'), 1, 'read after the bounded wait');
+  await clock.advance(30_000);
+  await clock.advance(30_000);
+  assert.equal(reads(channels, '192.168.1.3'), 3);
+});
+
+test('an answer of an older run is never published', async (t) => {
+  const { gladys, clock, channels } = await setup(t, { created: [LIVING] });
+  const living = channels.devices.get('192.168.1.20:57000').state;
+  let release;
+  living.hold = new Promise((resolve) => (release = resolve));
+  await clock.advance(30_000); // the round waits for the app
+  const before = gladys.fake.states.length;
+  await gladys.fake.configUpdated({ ...BASE, players: '192.168.1.21' });
+  living.state.status = 'paused';
+  living.hold = null;
+  release();
+  await clock.advance(0);
+  const published = gladys.fake.states.slice(before).map((st) => st.device_feature_external_id);
+  assert.ok(!published.some((id) => id.startsWith(LIVING.external_id)), published.join());
+});
+
+test('status: players refusing the connection are said (app closed, or a wrong address or port)', async (t) => {
+  const { gladys, clock, channels } = await setup(t);
+  for (const host of ['192.168.1.20', '192.168.1.21']) {
+    channels.devices.get(`${host}:57000`).state.mode = 'refused';
+  }
+  await clock.advance(30_000);
+  assert.match(
+    statusText(gladys),
+    /Players answering: 0 of 2\. 2 refuse the connection \(app closed, or a wrong address or port\)\./,
+  );
+  assert.equal(gladys.fake.connectionStatus.connected, true, 'the server answers');
 });
 
 test('stop: no timer, no request afterwards', async (t) => {

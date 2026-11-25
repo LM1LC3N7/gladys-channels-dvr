@@ -15,8 +15,9 @@ to date at the end of every milestone.
       clock sped up). **Never tested with a real Channels.**
 - [ ] **Milestone 2 — real Channels** (a tester in the US or Canada): record
       real answers as fixtures, fix what differs. To check first:
-  - the methods of the Client API: the documentation says `POST`, its curl
-    examples send `GET`; does every app version take `POST`?
+  - the commands are sent with `POST` (settled in review r1: the method the
+    documentation gives, and the one of the official client `pychannels`;
+    its curl examples are a shortcut): only to confirm on a real app;
   - the answer of a command: the documentation says the status model is the
     answer of every request; read as the confirmation when it is one;
   - whether `start_time` / `end_time` of a job include the padding, and
@@ -37,8 +38,10 @@ to date at the end of every milestone.
 - **SDK `^0.16.1`** (latest on npm, 2026-11-25); **Gladys `>=5.3.0`**:
   `countries` and the music types (`playback_state` writable, `title`,
   `mute`).
-- **`countries: ["US", "CA"]`** (the brief of the lot). The "What countries"
-  page of Channels also lists the United Kingdom: to add if Louis agrees.
+- **`countries: ["US", "CA", "GB"]`**: the official list of the "What
+  countries" page of Channels (review r1). Its second list (Australia,
+  France...) is guide coverage of "Channels for HDHomeRun", not the DVR
+  service: not added.
 - **No keywords** in the manifest. Categories `multimedia`, `servers`.
 - **No secret, no account**: the APIs of Channels take no credential on the
   local network; nothing secret is stored.
@@ -57,7 +60,8 @@ to date at the end of every milestone.
   what it plays with the `music` types, its controls in `television`):
   writable `playback_state`, `title`, writable `mute`; channel and channel
   up / down in `television`.
-- **Never faster than the interval**: attempt times in `/data`, written
+- **Periodic readings never faster than the interval** (a command reads its
+  player just before, out of turn): attempt times in `/data`, written
   before the reading; the test button and Discovery never read out of turn.
 - **No sensitive action**: nothing physical; recording, deleting and
   settings are never sent (`toggle_record`, `play/recording`, `navigate`,

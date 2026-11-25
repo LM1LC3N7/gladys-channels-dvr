@@ -44,7 +44,8 @@ test('the store basics; version 0.1.0 set by hand everywhere, never pinned', () 
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.type, 'device');
   assert.equal(manifest.gladys_version, '>=5.3.0', 'countries and the music types need 5.3');
-  assert.deepEqual(manifest.countries, ['US', 'CA']);
+  assert.deepEqual(manifest.countries, ['US', 'CA', 'GB'], 'the official list of Channels');
+  assert.match(read('README.md'), /United States, Canada, United Kingdom/);
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.equal(manifest.version, '0.1.0');
   assert.equal(pkg.version, manifest.version);

@@ -278,10 +278,12 @@ export function playerStates(gladys, player, reading) {
   if (playback === null) return states;
   states.push({ device_feature_external_id: id(PF.TITLE), text: title });
   if (channel) {
-    states.push(
-      { device_feature_external_id: id(PF.CHANNEL), state: channel.number },
-      { device_feature_external_id: id(PF.CHANNEL_NAME), text: channel.name || NOTHING },
-    );
+    // A number a number cannot write exactly ("12.10") is not published as
+    // the channel: its name is.
+    if (channel.value !== null) {
+      states.push({ device_feature_external_id: id(PF.CHANNEL), state: channel.value });
+    }
+    states.push({ device_feature_external_id: id(PF.CHANNEL_NAME), text: channel.name || NOTHING });
   } else {
     // A recording or a video of the library: no channel watched.
     states.push({ device_feature_external_id: id(PF.CHANNEL_NAME), text: NOTHING });

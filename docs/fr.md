@@ -18,7 +18,8 @@ testée sur des serveurs simulés. Vos retours sont les bienvenus.
 - Ni compte ni mot de passe : Channels n'en demande pas sur le réseau local.
   Les deux API sont en http simple ; l'intégration ne leur parle que sur
   votre réseau local.
-- Channels est vendu aux États-Unis et au Canada (et au Royaume-Uni).
+- Channels et son service DVR sont officiellement disponibles aux États-Unis,
+  au Canada et au Royaume-Uni.
 
 ## Configuration
 
@@ -70,7 +71,7 @@ enregistrements sont lus quand même.
 Sur Apple TV, l'application ne répond que lorsqu'elle est ouverte et au
 premier plan ; sur Android et Fire TV, aussi en arrière-plan une fois lancée.
 Quand le port refuse la connexion (application fermée), le lecteur affiche
-_à l'arrêt_ et un titre vide. Quand il ne répond pas du tout (appareil en
+_à l'arrêt_ et un titre vide. Quand il ne répond pas du tout à une lecture périodique (appareil en
 veille, réseau), seule _Application qui répond_ passe à `0` : les autres
 valeurs restent telles quelles, inconnues.
 
@@ -80,11 +81,13 @@ valeurs restent telles quelles, inconnues.
   en pause une application déjà en pause ou régler la chaîne déjà affichée
   n'envoie rien ; reprendre quand rien ne joue est refusé (réglez d'abord une
   chaîne).
-- Une commande reçoit sa réponse en 3,5 s environ. Elle n'est dite faite que si
-  l'application montre l'état demandé ; sinon des relectures 1,5 s et 5 s
-  plus tard publient ce que fait l'application, et un avertissement est
-  journalisé si elle ne le montre pas. Une commande partie sans réponse est
-  dite « envoyée, sans confirmation ».
+- Une commande reçoit sa réponse en 3,5 s environ. Elle ne réussit que si
+  l'application montre l'état demandé (dans sa réponse, ou dans une relecture
+  faite dans ce délai). Sinon Gladys reçoit l'erreur « envoyée, sans
+  confirmation » : des relectures 1,5 s et 5 s plus tard publient ce que fait
+  l'application, et un avertissement est journalisé si elle ne le montre pas.
+  Une commande refusée par l'application (HTTP 4xx) le dit ; « rien envoyé »
+  n'est dit que si aucune connexion n'a eu lieu.
 - Les commandes vers un même lecteur passent l'une après l'autre ; deux
   lecteurs sont pilotés en même temps. Une commande qui attend au-delà de son
   temps est abandonnée, pas envoyée en retard.
@@ -96,11 +99,13 @@ valeurs restent telles quelles, inconnues.
 
 ## Lectures
 
-- Chaque cible est lue une fois par intervalle, un tour à la fois. L'heure
+- Les lectures périodiques : chaque cible une fois par intervalle, un tour à la fois. L'heure
   de chaque tentative est écrite dans `/data` **avant** la lecture : un
   redémarrage, une reconnexion à Gladys ou la configuration enregistrée à
   nouveau ne lit pas une cible plus tôt que l'intervalle (un nouveau lecteur
-  est lu tout de suite).
+  est lu tout de suite). Hors de ces tours, une commande lit son lecteur
+  juste avant (et une fois de plus si sa réponse ne la montre pas appliquée),
+  puis 1,5 s et 5 s plus tard si elle n'est toujours pas vue.
 - Le bouton de test donne les dernières lectures ; il ne lit que les cibles
   dont c'est le tour.
 - Si `/data` est illisible, les premières lectures attendent un intervalle
@@ -110,7 +115,9 @@ valeurs restent telles quelles, inconnues.
 ## Statut
 
 L'intégration est affichée connectée tant que le serveur ou au moins un
-lecteur répond (une application fermée est un état normal). Elle dit ce qui
+lecteur répond (une application fermée est un état normal : quand des
+lecteurs refusent la connexion, le statut le dit et évoque une application
+fermée, ou une adresse ou un port faux). Elle dit ce qui
 ne répond pas et pourquoi, et quelles entrées de la configuration sont
 ignorées.
 
@@ -119,4 +126,6 @@ ignorées.
 - Jamais testée sur du vrai matériel (voir plus haut).
 - Une pause ou un changement de chaîne plus court que l'intervalle peut
   échapper aux lectures (pas aux commandes).
-- `12.10` et `12.1` sont le même nombre pour Gladys.
+- Un numéro de chaîne qu'un nombre de Gladys ne peut pas écrire exactement
+  (`12.10`) n'est pas publié comme _Chaîne_ (son nom l'est) ; régler `12.1`
+  dessus est envoyé, jamais pris pour fait.

@@ -109,7 +109,20 @@ export function parseChannelNumber(value) {
 }
 
 /**
- * The status model: { playback, muted, channel: { number, name } | null, title }
+ * A channel of the status: its number kept as the app wrote it ("12.10" is
+ * not "12.1"), `value` the same as a number only when the number writes it
+ * exactly (String(value) === number), else null (never published as such).
+ */
+export function parseChannel(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  const raw = typeof c.number === 'string' ? c.number.trim() : null;
+  if (raw === null || parseChannelNumber(raw) === null) return null;
+  const n = Number(raw);
+  return { number: raw, value: String(n) === raw ? n : null, name: cleanText(c.name, LIMITS.TEXT) };
+}
+
+/**
+ * The status model: { playback, muted, channel: { number, value, name } | null, title }
  * (`playback` or `muted` null when unknown), or null when it is not one.
  */
 export function parseStatus(json) {
@@ -117,12 +130,7 @@ export function parseStatus(json) {
   if (typeof json.status !== 'string') return null;
   const playback = Object.hasOwn(STATUS, json.status) ? STATUS[json.status] : null;
   const muted = typeof json.muted === 'boolean' ? json.muted : null;
-  let channel = null;
-  const c = json.channel;
-  if (c && typeof c === 'object' && !Array.isArray(c)) {
-    const number = parseChannelNumber(c.number);
-    if (number !== null) channel = { number, name: cleanText(c.name, LIMITS.TEXT) };
-  }
+  const channel = parseChannel(json.channel);
   let title = '';
   const n = json.now_playing;
   if (n && typeof n === 'object' && !Array.isArray(n)) {

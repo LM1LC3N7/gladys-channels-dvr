@@ -16,7 +16,8 @@ against simulated servers. Reports are welcome.
 - No account, no password: Channels asks for none on the local network. Both
   APIs are plain http; this integration talks to them on your local network
   only.
-- Channels is sold in the United States and Canada (and the United Kingdom).
+- Channels and its DVR service are officially available in the United States,
+  Canada and the United Kingdom.
 
 ## Configuration
 
@@ -65,7 +66,8 @@ read anyway.
 On Apple TV the app answers only while it is open and in front; on Android
 and Fire TV, also in the background once launched. When the port refuses the
 connection (the app closed), the player shows _idle_ and an empty title. When
-it does not answer at all (device asleep, network), only _App answering_
+it does not answer at all within a periodic reading (device asleep,
+network), only _App answering_
 goes to `0`: the other values stay as they were, unknown.
 
 ## Commands
@@ -73,10 +75,12 @@ goes to `0`: the other values stay as they were, unknown.
 - Each command reads the state of the app first, then decides: pausing a
   paused app or tuning the channel already shown sends nothing; resuming
   when nothing plays is refused (tune a channel first).
-- A command is answered within about 3.5 s. It is reported done only when the app
-  shows the requested state; otherwise follow-up readings 1.5 s and 5 s later
-  publish what the app does, and a warning is logged if it never shows it.
-  A command that left without an answer is said "sent, without confirmation".
+- A command is answered within about 3.5 s. It succeeds only when the app
+  shows the requested state (in its answer, or in one more reading within
+  that time). Otherwise Gladys gets the error "sent, without confirmation":
+  follow-up readings 1.5 s and 5 s later publish what the app does, and a
+  warning is logged if it never shows it. A command the app refuses (HTTP
+  4xx) says so; "nothing sent" is said only when no connection was made.
 - Commands to one player go one after the other; two players are driven at
   the same time. A command waiting past its time is dropped, not sent late.
 - Mute is a toggle in Channels: it is sent only on a state read just before,
@@ -86,10 +90,13 @@ goes to `0`: the other values stay as they were, unknown.
 
 ## Readings
 
-- Each target is read once per interval, a round at a time. The time of each
+- The periodic readings: each target once per interval, a round at a time. The time of each
   attempt is written in `/data` **before** the reading: a restart, a
   reconnection to Gladys or the configuration saved again does not read a
-  target sooner than the interval (a new player is read at once).
+  target sooner than the interval (a new player is read at once). Out of
+  these rounds, a command reads its player just before it (and once more
+  when its answer does not show it applied), then 1.5 s and 5 s later if
+  still not seen.
 - The test button reports the last readings; it reads only the targets
   that are due.
 - If `/data` cannot be read, the first readings wait one whole interval and
@@ -98,7 +105,9 @@ goes to `0`: the other values stay as they were, unknown.
 ## Status
 
 The integration is shown connected while the server or at least one player
-answers (an app that is closed counts as a normal state). It says what does
+answers (an app that is closed counts as a normal state: when players
+refuse the connection, the status says so and suggests an app closed, or a
+wrong address or port). It says what does
 not answer and why, and which entries of the configuration were ignored.
 
 ## Limits
@@ -106,4 +115,6 @@ not answer and why, and which entries of the configuration were ignored.
 - Not tested on real hardware (see above).
 - A pause or a channel change shorter than the interval may be missed by the
   readings (not by the commands).
-- `12.10` and `12.1` are the same number for Gladys.
+- A channel number a Gladys number cannot write exactly (`12.10`) is not
+  published as _Channel_ (its name is); tuning `12.1` on it is sent, never
+  taken for done.

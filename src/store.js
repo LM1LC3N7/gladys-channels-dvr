@@ -131,6 +131,11 @@ export class Store {
     for (const key of Object.keys(this.attempts)) if (!wanted.has(key)) delete this.attempts[key];
   }
 
+  /** Resolves when the writes queued so far are done (or failed). */
+  flushed() {
+    return this.#writes;
+  }
+
   #save() {
     const write = this.#writes.then(() => this.#write());
     this.#writes = write.catch(() => {});

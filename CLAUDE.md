@@ -45,9 +45,11 @@ test/                  node --test, fake Gladys, fake Channels, fake and real cl
   never a 0.
 - **Clocks**: the monotonic clock paces rounds, budgets and guards; the wall
   clock only dates `/data`. The server's `Date` header decides what records.
-- **Commands**: decided on a status read just before, within 3.5 s, reported
-  applied only when seen; "nothing sent" only when no connection was made.
-- **Never faster than the interval**, even after a restart.
+- **Commands**: decided on a status read just before, answered within 3.5 s,
+  a success only when the app shows the requested state, else an error "sent,
+  without confirmation"; "nothing sent" only when no connection was made.
+- **Periodic readings never faster than the interval**, even after a restart
+  (a command reads its player just before, out of turn).
 - **Versions** belong to the Release workflow, except 0.1.0 set by hand.
 - **Changelog** under `## [Unreleased]`; user texts bilingual (en, fr).
 - **Style**: Prettier, ESLint; comments explain why, in English; tests never

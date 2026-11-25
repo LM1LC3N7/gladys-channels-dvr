@@ -144,12 +144,6 @@
     "to": "      if (err) {"
   },
   {
-    "name": "unconfirmed command not followed",
-    "file": "src/app.js",
-    "from": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);\n    this.followUps(player, check, generation);",
-    "to": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);"
-  },
-  {
     "name": "stop leaves timers",
     "file": "src/app.js",
     "from": "    for (const handle of this.handles) this.timers.clearTimeout(handle);",
@@ -190,5 +184,59 @@
     "file": "src/app.js",
     "from": "const due = this.targets().filter((t) => (this.dueAt.get(t.key) ?? Infinity) <= mono);",
     "to": "const due = this.targets();"
+  },
+  {
+    "name": "R2 mute toggled when already so",
+    "file": "src/app.js",
+    "from": "      if (status.muted === (wanted === 1)) return;\n",
+    "to": ""
+  },
+  {
+    "name": "R5 sending never marked",
+    "file": "src/app.js",
+    "from": "    progress.sending = true;\n",
+    "to": ""
+  },
+  {
+    "name": "R8 /data write not bounded",
+    "file": "src/app.js",
+    "from": "      await this.within(\n        this.store.recordAttempts(\n          due.map((t) => t.key),\n          this.now(),\n        ),\n        this.timings.DATA_READ_MS,\n      ).catch(() => {});",
+    "to": "      await this.store.recordAttempts(\n        due.map((t) => t.key),\n        this.now(),\n      );"
+  },
+  {
+    "name": "R10 answer of an older run published",
+    "file": "src/app.js",
+    "from": "    if (generation !== this.generation) return null;\n    if (preRead",
+    "to": "    if (preRead"
+  },
+  {
+    "name": "12.10 read as 12.1",
+    "file": "src/channels/parse.js",
+    "from": "String(n) === raw ? n : null",
+    "to": "n"
+  },
+  {
+    "name": "short reading before turns online to 0",
+    "file": "src/app.js",
+    "from": "    if (preRead && !reading.online && !reading.closed) return reading;\n",
+    "to": ""
+  },
+  {
+    "name": "success without being seen applied",
+    "file": "src/app.js",
+    "from": "    throw new ChannelsError(\n      CODES.TIMEOUT,\n      `${player.name}: sent, without confirmation (not seen applied yet)`,\n    );",
+    "to": ""
+  },
+  {
+    "name": "4xx keeps the mute guard",
+    "file": "src/app.js",
+    "from": "        // The app refused it: nothing applied, a mute toggle may go again.\n        if (key === PF.MUTE) this.toggleGuards.delete(player.id);",
+    "to": "        // The app refused it: nothing applied, a mute toggle may go again."
+  },
+  {
+    "name": "follow-ups dropped when not seen",
+    "file": "src/app.js",
+    "from": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);\n    this.followUps(player, check, generation);",
+    "to": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);"
   }
 ]

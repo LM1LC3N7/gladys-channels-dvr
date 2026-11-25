@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cleanText,
+  parseChannel,
   parseChannelNumber,
   parseDateHeader,
   parseDvr,
@@ -141,7 +142,7 @@ test('status: the documented example', () => {
     {
       playback: 0,
       muted: false,
-      channel: { number: 552, name: 'TBS HD' },
+      channel: { number: '552', value: 552, name: 'TBS HD' },
       title: 'Seinfeld — The Truth',
     },
   );
@@ -157,6 +158,18 @@ test('status: the documented example', () => {
     assert.equal(parseStatus(json), null);
   assert.equal(parseStatus({ status: 'playing', muted: 'no' }).muted, null);
   assert.equal(parseStatus({ status: 'playing', channel: { number: 'abc' } }).channel, null);
+});
+
+test('channel of the status: the text kept; a value only when exact', () => {
+  assert.deepEqual(parseChannel({ number: '12.10', name: 'KCET' }), {
+    number: '12.10',
+    value: null,
+    name: 'KCET',
+  });
+  assert.deepEqual(parseChannel({ number: '12.1' }), { number: '12.1', value: 12.1, name: '' });
+  assert.deepEqual(parseChannel({ number: '0512' }).value, null);
+  assert.equal(parseChannel({ number: 512 }), null, 'a number, not the documented string');
+  assert.equal(parseChannel({ number: '100000' }), null);
 });
 
 test('channel numbers: 1 to 99999, up to 3 decimals', () => {

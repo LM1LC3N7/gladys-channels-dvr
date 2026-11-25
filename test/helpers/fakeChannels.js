@@ -80,6 +80,14 @@ export function createFakeChannels({ clock } = {}) {
         commandEmpty: false,
         /** commands only: 'ok' | 'lost' (sent, no answer) | number (HTTP status) */
         commandMode: 'ok',
+        /** commands answered (the current state) but never applied */
+        ignore: false,
+        /** ms of real latency of the commands only */
+        commandLatencyMs: 0,
+        /** a request given less time than this times out (an app answering slowly) */
+        slowMs: 0,
+        /** a promise every answer waits for */
+        hold: null,
       };
       devices.set(`${host}:${port}`, { kind: 'player', state: player });
       return player;
@@ -95,6 +103,13 @@ export function createFakeChannels({ clock } = {}) {
       }
       const p = device.state;
       if (p.latencyMs) await new Promise((resolve) => setTimeout(resolve, p.latencyMs));
+      if (p.hold) await p.hold;
+      if (p.slowMs && timeout < p.slowMs) {
+        throw new ChannelsError(CODES.TIMEOUT, 'No answer in time', { sent: true });
+      }
+      if (method === 'POST' && p.commandLatencyMs) {
+        await new Promise((resolve) => setTimeout(resolve, p.commandLatencyMs));
+      }
       if (p.mode === 'refused')
         throw new ChannelsError(CODES.REFUSED, 'Connection refused', { sent: false });
       if (p.mode === 'timeout')
@@ -122,6 +137,7 @@ export function createFakeChannels({ clock } = {}) {
       }
       if (method === 'POST') {
         const before = structuredClone(p.state);
+        if (p.ignore) return json(p.state);
         if (p.late) p.pending = () => apply(p, path);
         else apply(p, path);
         if (p.commandEmpty) return { status: 200, headers: {}, body: Buffer.alloc(0) };

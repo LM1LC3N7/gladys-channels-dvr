@@ -68,9 +68,9 @@ export const T = {
       en: `Server not read (${reason.en}).`,
       fr: `Serveur non lu (${reason.fr}).`,
     }),
-    players: (answering, total) => ({
-      en: `Players answering: ${answering} of ${total}.`,
-      fr: `Lecteurs qui répondent : ${answering} sur ${total}.`,
+    players: (answering, total, closed) => ({
+      en: `Players answering: ${answering} of ${total}.${closed > 0 ? ` ${closed} refuse the connection (app closed, or a wrong address or port).` : ''}`,
+      fr: `Lecteurs qui répondent : ${answering} sur ${total}.${closed > 0 ? ` ${closed} refusent la connexion (application fermée, ou adresse ou port faux).` : ''}`,
     }),
   },
   test: {
@@ -97,8 +97,8 @@ export const T = {
       return { en: `${name}: playback ${state}.`, fr: `${name} : lecture ${etat}.` };
     },
     age: (seconds) => ({
-      en: `(Readings at most ${seconds} s old: never read faster than the interval.)`,
-      fr: `(Lectures de ${seconds} s au plus : jamais plus vite que l'intervalle.)`,
+      en: `(Periodic readings, every ${seconds} s: the button does not read out of turn.)`,
+      fr: `(Lectures périodiques, toutes les ${seconds} s : le bouton ne lit pas hors tour.)`,
     }),
   },
   errors: {

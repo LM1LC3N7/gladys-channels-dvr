@@ -133,6 +133,14 @@ export class ChannelsApp {
     this.generation += 1;
     this.running = false;
     this.halt();
+    // The write in progress ends before the container does (2 s at most:
+    // a hung /data never holds the shutdown).
+    let handle;
+    await Promise.race([
+      this.store.flushed(),
+      new Promise((resolve) => (handle = setTimeout(resolve, 2_000))),
+    ]);
+    clearTimeout(handle);
   }
 
   /** Clears every timer of the current generation. */
@@ -343,7 +351,12 @@ export class ChannelsApp {
   }
 
   /** One status reading of a player, published. Resolves the reading. */
-  async readPlayer(player, generation, timeout = this.timings.PLAYER_TIMEOUT_MS) {
+  async readPlayer(
+    player,
+    generation,
+    timeout = this.timings.PLAYER_TIMEOUT_MS,
+    { preRead = false } = {},
+  ) {
     const at = this.monotonic();
     let reading;
     try {
@@ -352,6 +365,7 @@ export class ChannelsApp {
       reading = { online: false, closed: err?.code === CODES.REFUSED, error: err };
     }
     if (generation !== this.generation) return null;
+    if (preRead && !reading.online && !reading.closed) return reading;
     // An older reading than the one kept (crossing a command's) is not published.
     if (this.record(player, reading, at)) await this.publishPlayer(player, reading);
     return reading;
@@ -472,7 +486,11 @@ export class ChannelsApp {
           .filter(Boolean);
         if (players.length > 0) {
           notes.push(
-            T.status.players(playerReadings.filter((r) => r.online).length, players.length),
+            T.status.players(
+              playerReadings.filter((r) => r.online).length,
+              players.length,
+              playerReadings.filter((r) => r.closed).length,
+            ),
           );
         }
         // Everything read and nothing answers: not "connected". A player
@@ -628,7 +646,8 @@ export class ChannelsApp {
       const channel = Number.isFinite(n) ? parseChannelNumber(String(n)) : null;
       if (channel === null)
         throw nothingSent('Invalid channel number (1 to 99999, "12.1" for a subchannel)');
-      return channel;
+      // As text, compared with the text the app writes: "12.1" is not "12.10".
+      return String(channel);
     }
     return null; // a push button
   }
@@ -637,7 +656,9 @@ export class ChannelsApp {
     // The state just before decides (never the memory of a round).
     const preTimeout = Math.min(this.timings.PRE_READ_MS, this.remaining(started) - 300);
     if (preTimeout < 200) throw nothingSent(`${player.name}: no time left for this command`);
-    const before = await this.readPlayer(player, generation, preTimeout);
+    // A failure of this short reading (other than a refusal) is not published:
+    // the periodic reading, with its longer time, decides "App answering".
+    const before = await this.readPlayer(player, generation, preTimeout, { preRead: true });
     if (generation !== this.generation) throw nothingSent('Configuration changed');
     if (!before?.online) {
       throw nothingSent(
@@ -701,16 +722,29 @@ export class ChannelsApp {
     try {
       after = await this.client.command(player, path, timeout);
     } catch (err) {
-      if (generation !== this.generation) throw nothingSent('Configuration changed');
       if (err?.sent === false) {
         if (key === PF.MUTE) this.toggleGuards.delete(player.id);
         throw nothingSent(`${player.name}: ${this.describe(err)}`);
+      }
+      if (generation !== this.generation) {
+        throw new ChannelsError(
+          CODES.TIMEOUT,
+          `${player.name}: sent, without confirmation (configuration changed)`,
+        );
+      }
+      if (err?.code === CODES.HTTP && err.status >= 400 && err.status < 500) {
+        // The app refused it: nothing applied, a mute toggle may go again.
+        if (key === PF.MUTE) this.toggleGuards.delete(player.id);
+        throw new ChannelsError(
+          CODES.HTTP,
+          `${player.name}: the app refused the command (HTTP ${err.status})`,
+        );
       }
       this.followUps(player, check, generation);
       if (err?.code === CODES.HTTP) {
         throw new ChannelsError(
           CODES.HTTP,
-          `${player.name}: the app answered HTTP ${err.status}, not seen applied`,
+          `${player.name}: the app answered HTTP ${err.status}, sent, without confirmation`,
         );
       }
       throw new ChannelsError(
@@ -718,16 +752,36 @@ export class ChannelsApp {
         `${player.name}: sent, without confirmation (${this.describe(err)})`,
       );
     }
-    if (generation !== this.generation) return;
+    if (generation !== this.generation) {
+      throw new ChannelsError(
+        CODES.TIMEOUT,
+        `${player.name}: sent, without confirmation (configuration changed)`,
+      );
+    }
     if (after) {
       const reading = { online: true, status: after };
       if (this.record(player, reading, sentAt + 0.001)) await this.publishPlayer(player, reading);
       if (check(after)) return;
     }
-    // Sent and accepted, not seen applied yet: the app applies it a moment
-    // later. Never reported applied; follow-up readings publish what it does.
+    // Accepted, not shown applied by the answer: one more reading within the
+    // budget (the app often applies a moment later).
+    const left = this.remaining(started) - 100;
+    if (!progress.late && left >= 300) {
+      const reading = await this.readPlayer(
+        player,
+        generation,
+        Math.min(left, this.timings.PRE_READ_MS),
+        { preRead: true },
+      );
+      if (generation === this.generation && reading?.online && check(reading.status)) return;
+    }
+    // Never reported applied when not seen: follow-up readings publish what it does.
     this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);
     this.followUps(player, check, generation);
+    throw new ChannelsError(
+      CODES.TIMEOUT,
+      `${player.name}: sent, without confirmation (not seen applied yet)`,
+    );
   }
 
   /** Readings after a command not seen applied; a warning if never seen. */

@@ -46,7 +46,6 @@ test('rounds every 15 s (real clock x100), measured; a stop leaves no timer nor 
   const clock = realClock({ speed: SPEED });
   t.after(() => clock.close());
   const dataDir = await mkdtemp(join(tmpdir(), 'channels-real-'));
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const gladys = createFakeGladys({
     selector: 'channels-dvr',
     config: {
@@ -63,7 +62,10 @@ test('rounds every 15 s (real clock x100), measured; a stop leaves no timer nor 
     monotonic: clock.monotonic,
     timers: clock.timers,
   });
-  t.after(() => channels.stop());
+  t.after(async () => {
+    await channels.stop();
+    await rm(dataDir, { recursive: true, force: true, maxRetries: 5 });
+  });
   // The decision, not the requests (their latency blurs the period): each
   // round records its attempts first.
   const rounds = [];

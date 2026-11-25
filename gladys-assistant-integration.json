@@ -11,7 +11,7 @@
   "gladys_version": ">=5.3.0",
   "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-channels-dvr/main/cover.png",
   "categories": ["multimedia", "servers"],
-  "countries": ["US", "CA"],
+  "countries": ["US", "CA", "GB"],
   "transports": ["local"],
   "config_schema": [
     {
@@ -63,8 +63,8 @@
       "type": "select",
       "label": { "en": "Refresh interval", "fr": "Intervalle de rafraîchissement" },
       "description": {
-        "en": "How often the server and the players are read. Never faster, not even after a restart.",
-        "fr": "Fréquence de lecture du serveur et des lecteurs. Jamais plus vite, même après un redémarrage."
+        "en": "How often the server and the players are read (periodic readings), a restart included. A command also reads its player just before.",
+        "fr": "Fréquence de lecture du serveur et des lecteurs (lectures périodiques), redémarrage compris. Une commande lit aussi son lecteur juste avant."
       },
       "required": false,
       "default": "30",
