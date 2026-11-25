@@ -71,3 +71,7 @@ to date at the end of every milestone.
 - **No reference code ported**: written from the official documentation;
   `THIRD_PARTY_NOTICES.md` says so.
 - **Rate**: changed values only; held back past 250 states a minute.
+
+## Next patch
+
+- Review minors: see `_lots/lot25/reviews/channels-dvr-r2.md` (relecture du budget de 3,5 s trop tôt : « sans confirmation » pessimiste).
