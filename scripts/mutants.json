@@ -1,0 +1,194 @@
+[
+  {
+    "name": "multicast address accepted",
+    "file": "src/config.js",
+    "from": "(a >= 224 && a <= 239) ||",
+    "to": ""
+  },
+  {
+    "name": "https accepted",
+    "file": "src/config.js",
+    "from": "if (/^https:\\/\\//i.test(raw)) return { error: 'https' };",
+    "to": ""
+  },
+  {
+    "name": "dots kept in the player id",
+    "file": "src/config.js",
+    "from": "host.replace(/[.:]/g, '-')",
+    "to": "host.replace(/[:]/g, '-')"
+  },
+  {
+    "name": "job end included",
+    "file": "src/channels/parse.js",
+    "from": "start <= now && now < end",
+    "to": "start <= now && now <= end"
+  },
+  {
+    "name": "failed job counted as recording",
+    "file": "src/channels/parse.js",
+    "from": "if (job.failed !== true) recording",
+    "to": "recording"
+  },
+  {
+    "name": "skipped job counted",
+    "file": "src/channels/parse.js",
+    "from": "if (job.skipped === true) continue;",
+    "to": ""
+  },
+  {
+    "name": "times in ms read as seconds",
+    "file": "src/channels/parse.js",
+    "from": "value >= 1e9 && value < 1e10",
+    "to": "value >= 1e9"
+  },
+  {
+    "name": "free above total accepted",
+    "file": "src/channels/parse.js",
+    "from": "total === 0 || free > total",
+    "to": "total === 0"
+  },
+  {
+    "name": "our clock when the server gives none",
+    "file": "src/channels/client.js",
+    "from": "const serverNow = parseDateHeader(response.headers?.date);",
+    "to": "const serverNow = parseDateHeader(response.headers?.date) ?? Date.now();"
+  },
+  {
+    "name": "body not cut at the cap",
+    "file": "src/channels/http.js",
+    "from": "if (size > maxBytes) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "refused said sent",
+    "file": "src/channels/http.js",
+    "from": "return new ChannelsError(CODES.REFUSED, 'Connection refused', { sent: false });",
+    "to": "return new ChannelsError(CODES.REFUSED, 'Connection refused', { sent: true });"
+  },
+  {
+    "name": "period halved",
+    "file": "src/app.js",
+    "from": "for (const t of due) this.dueAt.set(t.key, mono + this.config.pollMs);",
+    "to": "for (const t of due) this.dueAt.set(t.key, mono + this.config.pollMs / 2);"
+  },
+  {
+    "name": "/data unreadable: read at once",
+    "file": "src/app.js",
+    "from": "        delay = pollMs;",
+    "to": "        delay = 0;"
+  },
+  {
+    "name": "a future attempt date trusted",
+    "file": "src/app.js",
+    "from": "if (last !== null && last <= wall)",
+    "to": "if (last !== null)"
+  },
+  {
+    "name": "attempts not written before the reading",
+    "file": "src/app.js",
+    "from": "          due.map((t) => t.key),\n          this.now(),",
+    "to": "          [],\n          this.now(),"
+  },
+  {
+    "name": "no answer read as app closed",
+    "file": "src/app.js",
+    "from": "closed: err?.code === CODES.REFUSED",
+    "to": "closed: true"
+  },
+  {
+    "name": "already in the state: sent anyway",
+    "file": "src/app.js",
+    "from": "      if (status.playback === wanted) return; // already so: nothing to send",
+    "to": ""
+  },
+  {
+    "name": "resume with nothing playing",
+    "file": "src/app.js",
+    "from": "      } else if (status.playback === PLAYBACK.IDLE) {\n        throw nothingSent(`${player.name}: nothing is playing (tune a channel first)`);",
+    "to": "      } else if (false) {\n        throw nothingSent(`${player.name}: nothing is playing (tune a channel first)`);"
+  },
+  {
+    "name": "mute guard ignored",
+    "file": "src/app.js",
+    "from": "if (guard && this.monotonic() < guard.until) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "sent late after the budget",
+    "file": "src/app.js",
+    "from": "if (progress.late || timeout < 300)",
+    "to": "if (timeout < 300)"
+  },
+  {
+    "name": "stale reading at device creation",
+    "file": "src/app.js",
+    "from": "if (last && this.monotonic() - last.at < this.config.pollMs) {",
+    "to": "if (last) {"
+  },
+  {
+    "name": "all down still connected",
+    "file": "src/app.js",
+    "from": "if (read.length === this.targets().length && answering === 0) connected = false;",
+    "to": ""
+  },
+  {
+    "name": "rate limit ignored",
+    "file": "src/app.js",
+    "from": "if (used + list.length > LIMITS.STATES_PER_MINUTE) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "sent failure said nothing sent",
+    "file": "src/app.js",
+    "from": "      if (err?.sent === false) {",
+    "to": "      if (err) {"
+  },
+  {
+    "name": "unconfirmed command not followed",
+    "file": "src/app.js",
+    "from": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);\n    this.followUps(player, check, generation);",
+    "to": "    this.logger.info(`${player.name}: ${key} sent, not seen applied yet`);"
+  },
+  {
+    "name": "stop leaves timers",
+    "file": "src/app.js",
+    "from": "    for (const handle of this.handles) this.timers.clearTimeout(handle);",
+    "to": ""
+  },
+  {
+    "name": "disk read every round",
+    "file": "src/app.js",
+    "from": "Math.max(this.timings.DISK_EVERY_MS, this.config.pollMs)",
+    "to": "this.config.pollMs"
+  },
+  {
+    "name": "channel above the maximum",
+    "file": "src/channels/parse.js",
+    "from": "return n >= 1 && n <= LIMITS.CHANNEL_MAX ? n : null;",
+    "to": "return n >= 1 ? n : null;"
+  },
+  {
+    "name": "unreadable /data written over",
+    "file": "src/store.js",
+    "from": "    if (!this.readable) return false;",
+    "to": ""
+  },
+  {
+    "name": "two /data reads at once",
+    "file": "src/store.js",
+    "from": "    if (this.#reading) return this.#reading;",
+    "to": ""
+  },
+  {
+    "name": "no answer = idle",
+    "file": "src/model.js",
+    "from": "    if (reading.closed) {",
+    "to": "    if (true) {"
+  },
+  {
+    "name": "test button reads out of turn",
+    "file": "src/app.js",
+    "from": "const due = this.targets().filter((t) => (this.dueAt.get(t.key) ?? Infinity) <= mono);",
+    "to": "const due = this.targets();"
+  }
+]

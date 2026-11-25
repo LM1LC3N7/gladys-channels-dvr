@@ -1,61 +1,109 @@
-# Demo Devices Template
+# Channels DVR
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Follow your **Channels DVR Server** (recordings in progress and upcoming,
+space of the recordings disk) and drive the **Channels apps** of your TVs
+(pause, resume, stop, mute, channel) from Gladys, on the local network.
 
-## What you get
+Unofficial integration, not affiliated with Fancy Bits (Channels). It has
+**never been tested with a real Channels** setup: it is written from the
+official documentation of the Server API and of the Client API, and tested
+against simulated servers. Reports are welcome.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+## What you need
+
+- Channels DVR Server on your network (port 8089), and/or the Channels app on
+  an Apple TV, Fire TV or Android TV device (its API listens on port 57000).
+- No account, no password: Channels asks for none on the local network. Both
+  APIs are plain http; this integration talks to them on your local network
+  only.
+- Channels is sold in the United States and Canada (and the United Kingdom).
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+- **Channels DVR Server address**: `192.168.1.3` or `http://192.168.1.3:8089`
+  (8089 when no port is typed). https, a path or credentials are refused.
+  Leave it empty to follow only players.
+- **Channels apps (players)**: the addresses of the devices running the app,
+  separated by commas, `57000` by default, a name before an equals sign if
+  you want one: `Living room=192.168.1.20, Bedroom=192.168.1.21`. Ten at most.
+- **Refresh interval**: 15 s to 5 min (30 s by default).
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+A player is known by its **address**: the Channels app gives no serial number
+nor any other identifier. Reserve its IP in your router; a new address
+creates a new device in Gladys (the old one stays, without values).
 
-## Actions
+## Devices
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+**Channels DVR** (read only):
 
-## Scenes
+| Feature                | Value                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| Recordings in progress | jobs whose time window holds the time of the server, neither skipped nor failed |
+| Upcoming recordings    | jobs starting later, not skipped                                                |
+| Recording now          | names of the recordings in progress, `—` when none                              |
+| Next recording         | name of the next recording, `—` when none                                       |
+| Disk free / Disk used  | GB (10^9 bytes), read every 5 minutes                                           |
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+The time of the **server** decides what is recording (its `Date` header),
+not the clock of Gladys. An answer without that header leaves the counts
+unknown. The disk comes from `/dvr`, a route outside the documented Server
+API: if it does not answer, the disk stays unknown and the recordings are
+read anyway.
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+**Each player**:
 
-## Dashboard
+| Feature                   | Value                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| Playback                  | playing, paused, idle; write `0` pause, `1` resume, `2` stop                 |
+| Now playing               | title and episode, empty when nothing plays                                  |
+| Mute                      | `1` muted; writable                                                          |
+| Channel                   | the channel watched (`12.1` for a subchannel); writing it tunes that channel |
+| Channel name              | `—` when no channel is watched                                               |
+| Channel up / Channel down | push buttons                                                                 |
+| App answering             | `1` the app answers on its port, `0` not                                     |
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+On Apple TV the app answers only while it is open and in front; on Android
+and Fire TV, also in the background once launched. When the port refuses the
+connection (the app closed), the player shows _idle_ and an empty title. When
+it does not answer at all (device asleep, network), only _App answering_
+goes to `0`: the other values stay as they were, unknown.
 
-## Troubleshooting
+## Commands
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- Each command reads the state of the app first, then decides: pausing a
+  paused app or tuning the channel already shown sends nothing; resuming
+  when nothing plays is refused (tune a channel first).
+- A command is answered within about 3.5 s. It is reported done only when the app
+  shows the requested state; otherwise follow-up readings 1.5 s and 5 s later
+  publish what the app does, and a warning is logged if it never shows it.
+  A command that left without an answer is said "sent, without confirmation".
+- Commands to one player go one after the other; two players are driven at
+  the same time. A command waiting past its time is dropped, not sent late.
+- Mute is a toggle in Channels: it is sent only on a state read just before,
+  and a second mute change is refused (for up to 6 s) until the first one is
+  seen applied.
+- Nothing else is ever sent: no recording started or deleted, no settings.
+
+## Readings
+
+- Each target is read once per interval, a round at a time. The time of each
+  attempt is written in `/data` **before** the reading: a restart, a
+  reconnection to Gladys or the configuration saved again does not read a
+  target sooner than the interval (a new player is read at once).
+- The test button reports the last readings; it reads only the targets
+  that are due.
+- If `/data` cannot be read, the first readings wait one whole interval and
+  the file is read again every 10 s; it is not written over meanwhile.
+
+## Status
+
+The integration is shown connected while the server or at least one player
+answers (an app that is closed counts as a normal state). It says what does
+not answer and why, and which entries of the configuration were ignored.
+
+## Limits
+
+- Not tested on real hardware (see above).
+- A pause or a channel change shorter than the interval may be missed by the
+  readings (not by the commands).
+- `12.10` and `12.1` are the same number for Gladys.

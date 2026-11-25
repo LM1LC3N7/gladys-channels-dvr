@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
-  "version": "1.0.0",
+  "name": "gladys-channels-dvr",
+  "version": "0.1.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Gladys Assistant external integration for Channels DVR: the recordings and disk of Channels DVR Server, and the Channels apps (play, pause, stop, mute, channel), on the local network. Unofficial, not affiliated with Fancy Bits.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,17 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test"
+    "test": "node --test --test-timeout=60000",
+    "audit": "npm audit --omit=dev",
+    "cover": "node scripts/cover.mjs",
+    "validate:manifest": "npx --yes github:GladysAssistant/integration-store ."
   },
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LM1LC3N7/gladys-channels-dvr.git"
   },
   "dependencies": {
     "@gladysassistant/integration-sdk": "^0.16.1"

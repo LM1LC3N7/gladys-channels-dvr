@@ -1,67 +1,122 @@
-# Template de démonstration
+# Channels DVR
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Suivez votre **serveur Channels DVR** (enregistrements en cours et à venir,
+espace du disque des enregistrements) et pilotez les **applications
+Channels** de vos téléviseurs (pause, reprise, arrêt, muet, chaîne) depuis
+Gladys, sur le réseau local.
 
-## Ce que vous obtenez
+Intégration non officielle, sans lien avec Fancy Bits (Channels). Elle n'a
+**jamais été testée avec un vrai Channels** : elle est écrite d'après la
+documentation officielle de l'API du serveur et de l'API des applications, et
+testée sur des serveurs simulés. Vos retours sont les bienvenus.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+## Ce qu'il faut
+
+- Channels DVR Server sur votre réseau (port 8089), et/ou l'application
+  Channels sur une Apple TV, une Fire TV ou un appareil Android TV (son API
+  écoute sur le port 57000).
+- Ni compte ni mot de passe : Channels n'en demande pas sur le réseau local.
+  Les deux API sont en http simple ; l'intégration ne leur parle que sur
+  votre réseau local.
+- Channels est vendu aux États-Unis et au Canada (et au Royaume-Uni).
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+- **Adresse du serveur Channels DVR** : `192.168.1.3` ou
+  `http://192.168.1.3:8089` (8089 si aucun port n'est saisi). https, un
+  chemin ou des identifiants sont refusés. Laissez vide pour ne suivre que
+  des lecteurs.
+- **Applications Channels (lecteurs)** : les adresses des appareils où tourne
+  l'application, séparées par des virgules, port `57000` par défaut, un nom
+  avant un signe égal si vous le souhaitez :
+  `Salon=192.168.1.20, Chambre=192.168.1.21`. Dix au plus.
+- **Intervalle de rafraîchissement** : de 15 s à 5 min (30 s par défaut).
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Un lecteur est repéré par son **adresse** : l'application Channels ne donne
+ni numéro de série ni autre identifiant. Réservez son IP dans votre box ; une
+nouvelle adresse crée un nouvel appareil dans Gladys (l'ancien reste, sans
+valeurs).
 
-## Actions
+## Appareils
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+**Channels DVR** (lecture seule) :
 
-## Scènes
+| Fonction                      | Valeur                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| Enregistrements en cours      | tâches dont la plage contient l'heure du serveur, ni ignorées ni en échec |
+| Enregistrements à venir       | tâches qui commencent plus tard, non ignorées                             |
+| Enregistrement en cours       | noms des enregistrements en cours, `—` sinon                              |
+| Prochain enregistrement       | nom du prochain enregistrement, `—` sinon                                 |
+| Disque libre / Disque utilisé | Go (10^9 octets), lus toutes les 5 minutes                                |
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+C'est l'heure du **serveur** qui décide de ce qui s'enregistre (son en-tête
+`Date`), pas l'horloge de Gladys. Une réponse sans cet en-tête laisse les
+comptes inconnus. Le disque vient de `/dvr`, une route hors de l'API
+documentée du serveur : si elle ne répond pas, le disque reste inconnu et les
+enregistrements sont lus quand même.
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+**Chaque lecteur** :
 
-## Tableau de bord
+| Fonction                     | Valeur                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| Lecture                      | en lecture, en pause, à l'arrêt ; écrire `0` pause, `1` reprise, `2` arrêt     |
+| En cours de lecture          | titre et épisode, vide si rien ne joue                                         |
+| Muet                         | `1` muet ; modifiable                                                          |
+| Chaîne                       | la chaîne regardée (`12.1` pour une sous-chaîne) ; l'écrire règle cette chaîne |
+| Nom de la chaîne             | `—` si aucune chaîne n'est regardée                                            |
+| Chaîne suivante / précédente | boutons                                                                        |
+| Application qui répond       | `1` l'application répond sur son port, `0` non                                 |
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+Sur Apple TV, l'application ne répond que lorsqu'elle est ouverte et au
+premier plan ; sur Android et Fire TV, aussi en arrière-plan une fois lancée.
+Quand le port refuse la connexion (application fermée), le lecteur affiche
+_à l'arrêt_ et un titre vide. Quand il ne répond pas du tout (appareil en
+veille, réseau), seule _Application qui répond_ passe à `0` : les autres
+valeurs restent telles quelles, inconnues.
 
-## Dépannage
+## Commandes
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- Chaque commande lit d'abord l'état de l'application, puis décide : mettre
+  en pause une application déjà en pause ou régler la chaîne déjà affichée
+  n'envoie rien ; reprendre quand rien ne joue est refusé (réglez d'abord une
+  chaîne).
+- Une commande reçoit sa réponse en 3,5 s environ. Elle n'est dite faite que si
+  l'application montre l'état demandé ; sinon des relectures 1,5 s et 5 s
+  plus tard publient ce que fait l'application, et un avertissement est
+  journalisé si elle ne le montre pas. Une commande partie sans réponse est
+  dite « envoyée, sans confirmation ».
+- Les commandes vers un même lecteur passent l'une après l'autre ; deux
+  lecteurs sont pilotés en même temps. Une commande qui attend au-delà de son
+  temps est abandonnée, pas envoyée en retard.
+- Le muet est une bascule dans Channels : il n'est envoyé que sur un état lu
+  juste avant, et un second changement est refusé (6 s au plus) tant que le
+  premier n'est pas vu appliqué.
+- Rien d'autre n'est envoyé : aucun enregistrement lancé ou supprimé, aucun
+  réglage.
+
+## Lectures
+
+- Chaque cible est lue une fois par intervalle, un tour à la fois. L'heure
+  de chaque tentative est écrite dans `/data` **avant** la lecture : un
+  redémarrage, une reconnexion à Gladys ou la configuration enregistrée à
+  nouveau ne lit pas une cible plus tôt que l'intervalle (un nouveau lecteur
+  est lu tout de suite).
+- Le bouton de test donne les dernières lectures ; il ne lit que les cibles
+  dont c'est le tour.
+- Si `/data` est illisible, les premières lectures attendent un intervalle
+  entier et le fichier est relu toutes les 10 s ; il n'est pas écrasé
+  entre-temps.
+
+## Statut
+
+L'intégration est affichée connectée tant que le serveur ou au moins un
+lecteur répond (une application fermée est un état normal). Elle dit ce qui
+ne répond pas et pourquoi, et quelles entrées de la configuration sont
+ignorées.
+
+## Limites
+
+- Jamais testée sur du vrai matériel (voir plus haut).
+- Une pause ou un changement de chaîne plus court que l'intervalle peut
+  échapper aux lectures (pas aux commandes).
+- `12.10` et `12.1` sont le même nombre pour Gladys.
